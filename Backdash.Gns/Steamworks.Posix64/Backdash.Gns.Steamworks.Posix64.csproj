@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="GnsSharp.Steamworks.Posix64" Version="$(GnsSharpVersion)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);BACKDASH_GNS_PLATFORM_64</DefineConstants>
+  </PropertyGroup>
+
+</Project>
