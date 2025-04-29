@@ -36,7 +36,7 @@ NetcodeSessionBuilder<MyGameInput> builder = RollbackNetcode
     .WithInputType<MyGameInput>()
     .UseGameNetworkingSockets()    // Use GnsSharp integration (extension method)
     .WithPort(channel)             // Set the "Channel" number for `ISteamNetworkingMessages`
-    .WithPlayerCount(playerCount);
+    .WithPlayerCount(playerCount)
     .WithPlayers(players)
     .ForRemote();
 
