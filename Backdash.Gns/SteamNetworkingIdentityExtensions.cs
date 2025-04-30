@@ -5,6 +5,7 @@ namespace Backdash.Gns;
 
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using GnsSharp;
 
@@ -20,15 +21,11 @@ public static class SteamNetworkingIdentityExtensions
     /// <returns><see cref="SocketAddress"/> containing <see cref="SteamNetworkingIdentity"/> internally.</returns>
     public static SocketAddress ToSocketAddress(this in SteamNetworkingIdentity identity)
     {
-        unsafe
-        {
-            var addr = new SocketAddress(AddressFamily.Unspecified, sizeof(SteamNetworkingIdentity));
+        var addr = new SocketAddress(AddressFamily.Unspecified, Unsafe.SizeOf<SteamNetworkingIdentity>());
+        var identitySpan = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in identity, 1));
+        identitySpan.CopyTo(addr.Buffer.Span);
 
-            var identitySpan = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in identity, 1));
-            identitySpan.CopyTo(addr.Buffer.Span);
-
-            return addr;
-        }
+        return addr;
     }
 
     /// <summary>
@@ -36,8 +33,6 @@ public static class SteamNetworkingIdentityExtensions
     /// </summary>
     /// <param name="addr">Socket address containing <see cref="SteamNetworkingIdentity"/> internally.</param>
     /// <returns>Reinterpreted <see cref="SteamNetworkingIdentity"/>.</returns>
-    public static ref SteamNetworkingIdentity AsSteamNetworkingIdentity(this SocketAddress addr)
-    {
-        return ref MemoryMarshal.AsRef<SteamNetworkingIdentity>(addr.Buffer.Span);
-    }
+    public static ref SteamNetworkingIdentity AsSteamNetworkingIdentity(this SocketAddress addr) =>
+        ref MemoryMarshal.AsRef<SteamNetworkingIdentity>(addr.Buffer.Span);
 }

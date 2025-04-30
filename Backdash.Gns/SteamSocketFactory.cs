@@ -21,9 +21,10 @@ internal sealed class SteamSocketFactory : IPeerSocketFactory
     /// <returns><see cref="IPeerSocket"/> that is <see cref="SteamSocket"/>.</returns>
     public IPeerSocket Create(int channel, NetcodeOptions options)
     {
-        if (ISteamNetworkingMessages.User == null)
+        if (ISteamNetworkingMessages.User is null)
         {
-            throw new InvalidOperationException("ISteamNetworkingMessages.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
+            throw new InvalidOperationException(
+                "ISteamNetworkingMessages.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
         }
 
         return new SteamSocket(channel, ISteamNetworkingMessages.User);

@@ -2,6 +2,8 @@
 # editor settings
 .vs/
 .vscode/
+.idea/
+*.DotSettings.user
 
 # build output
 [Bb]in/

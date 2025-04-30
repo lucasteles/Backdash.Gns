@@ -16,7 +16,7 @@ using GnsSharp;
 /// </summary>
 public sealed class SteamSessionPlugin : INetcodePlugin
 {
-    private HashSet<SteamNetworkingIdentity> endPointIdentities = new();
+    private readonly HashSet<SteamNetworkingIdentity> endPointIdentities = [];
 
     private FnSteamNetworkingMessagesSessionRequest? steamNetMsgsSessionRequest;
 
@@ -85,7 +85,7 @@ public sealed class SteamSessionPlugin : INetcodePlugin
         GC.SuppressFinalize(this);
 
         // Remove message session request callback
-        if (this.steamNetMsgsSessionRequest != null)
+        if (this.steamNetMsgsSessionRequest is not null)
         {
             unsafe
             {
@@ -113,14 +113,16 @@ public sealed class SteamSessionPlugin : INetcodePlugin
 
     private static void ThrowIfSteamInterfacesNull()
     {
-        if (ISteamNetworkingUtils.User == null)
+        if (ISteamNetworkingUtils.User is null)
         {
-            throw new InvalidOperationException("ISteamNetworkingUtils.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
+            throw new InvalidOperationException(
+                "ISteamNetworkingUtils.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
         }
 
-        if (ISteamNetworkingMessages.User == null)
+        if (ISteamNetworkingMessages.User is null)
         {
-            throw new InvalidOperationException("ISteamNetworkingMessages.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
+            throw new InvalidOperationException(
+                "ISteamNetworkingMessages.User is null. Call SteamAPI.Init() or SteamAPI.InitEx() beforehand.");
         }
     }
 
@@ -132,20 +134,29 @@ public sealed class SteamSessionPlugin : INetcodePlugin
     {
         unsafe
         {
-            IntPtr callbackPtr;
+            nint callbackPtr;
 #if BACKDASH_GNS_PLATFORM_64
-            ulong callbackPtrSize = (ulong)sizeof(IntPtr);
+            var callbackPtrSize = (ulong)sizeof(IntPtr);
 #elif BACKDASH_GNS_PLATFORM_32
-            uint callbackPtrSize = (uint)sizeof(IntPtr);
+            var callbackPtrSize = (uint)sizeof(nint);
 #else
 #error "Unknown pointer size. Define `BACKDASH_GNS_PLATFORM_64` or `BACKDASH_GNS_PLATFORM_32` according to your platform."
 #endif
             Span<byte> callbackPtrSpan = new(&callbackPtr, (int)callbackPtrSize);
 
-            var getConfigResult = ISteamNetworkingUtils.User!.GetConfigValue(ESteamNetworkingConfigValue.Callback_MessagesSessionRequest, ESteamNetworkingConfigScope.Global, IntPtr.Zero, callbackPtrSpan, ref callbackPtrSize);
-            Debug.Assert(getConfigResult == ESteamNetworkingGetConfigValueResult.OK || getConfigResult == ESteamNetworkingGetConfigValueResult.OKInherited, $"GetConfigValue failed with {getConfigResult}");
+            var getConfigResult = ISteamNetworkingUtils.User?.GetConfigValue(
+                ESteamNetworkingConfigValue.Callback_MessagesSessionRequest,
+                ESteamNetworkingConfigScope.Global,
+                nint.Zero,
+                callbackPtrSpan,
+                ref callbackPtrSize);
 
-            if (callbackPtr != IntPtr.Zero)
+            Debug.Assert(
+                getConfigResult is ESteamNetworkingGetConfigValueResult.OK
+                    or ESteamNetworkingGetConfigValueResult.OKInherited,
+                $"GetConfigValue failed with {getConfigResult}");
+
+            if (callbackPtr != nint.Zero)
             {
                 throw new InvalidOperationException("There was already MessagesSessionRequest callback registered.");
             }
