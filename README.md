@@ -11,6 +11,17 @@ Currently, only the Steamworks SDK integration is supported.
 Open-source standalone [GameNetworkingSockets](https://github.com/ValveSoftware/GameNetworkingSockets) is **not** supported yet, because of some upstream issues.\
 See [Issue #1](https://github.com/nalchi-net/Backdash.Gns/issues/1) for details.
 
+## Nuget package
+
+There are 4 different nuget packages available for different backends & platforms.
+
+```powershell
+dotnet add package Backdash.Gns.Steamworks.Win64 --prerelease    # Steamworks SDK for Windows 64-bit
+dotnet add package Backdash.Gns.Steamworks.Win32 --prerelease    # Steamworks SDK for Windows 32-bit
+dotnet add package Backdash.Gns.Steamworks.Posix64 --prerelease  # Steamworks SDK for POSIX 64-bit
+dotnet add package Backdash.Gns.Steamworks.Posix32 --prerelease  # Steamworks SDK for POSIX 32-bit
+```
+
 ## Usage
 
 You first need to initialize GnsSharp and call `RunCallbacks()` periodically in somewhere.\
