@@ -23,7 +23,7 @@
     <Company>nalchi-net</Company>
     <Authors>copyrat90</Authors>
     <Description>GnsSharp extension to Backdash.</Description>
-    <Version>0.1.0-alpha.2</Version>
+    <Version>0.1.0-alpha.3</Version>
     <PackageTags>Rollback;Netcode;Steamworks;GameNetworkingSockets</PackageTags>
   </PropertyGroup>
 
@@ -35,7 +35,7 @@
   </ItemGroup>
 
   <PropertyGroup>
-    <GnsSharpVersion>0.1.0-alpha.13</GnsSharpVersion>
+    <GnsSharpVersion>0.1.0-alpha.14</GnsSharpVersion>
   </PropertyGroup>
 
   <ItemGroup>
