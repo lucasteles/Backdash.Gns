@@ -64,7 +64,7 @@ public sealed class SteamSocket : IPeerSocket
                 return size;
             }
 
-            if (spin.NextSpinWillYield)
+            if (!spin.NextSpinWillYield)
             {
                 spin.SpinOnce();
                 continue;
