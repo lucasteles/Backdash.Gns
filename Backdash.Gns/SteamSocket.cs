@@ -6,6 +6,7 @@ namespace Backdash.Gns;
 using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Backdash.Network.Client;
@@ -17,7 +18,6 @@ using GnsSharp;
 public sealed class SteamSocket : IPeerSocket
 {
     private readonly ISteamNetworkingMessages steamNetMsgs;
-
     private readonly int channel;
 
     /// <summary>
@@ -50,55 +50,35 @@ public sealed class SteamSocket : IPeerSocket
     /// </param>
     /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
     /// <returns><see cref="ValueTask"/> containing receive task.</returns>
-    public ValueTask<int> ReceiveFromAsync(Memory<byte> buffer, SocketAddress address, CancellationToken cancellationToken)
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    public async ValueTask<int> ReceiveFromAsync(
+        Memory<byte> buffer, SocketAddress address, CancellationToken cancellationToken)
     {
-        return new ValueTask<int>(Task.Run<int>(
-            async () =>
+        const int numberOfSyncSpins = 10;
+        SpinWait spin = default;
+
+        for (var i = 0; i < numberOfSyncSpins; i++)
+        {
+            if (this.TryReceiveMessageOnChannel(buffer.Span, in address, out var size))
             {
-                IntPtr[] msgPtrs = new IntPtr[1];
+                return size;
+            }
 
-                try
-                {
-                    while (true)
-                    {
-                        int msgReceived = this.steamNetMsgs.ReceiveMessagesOnChannel(this.Port, msgPtrs);
-                        if (msgReceived != 0)
-                        {
-                            break;
-                        }
+            if (!spin.NextSpinWillYield)
+            {
+                spin.SpinOnce();
+                continue;
+            }
 
-                        await Task.Delay(1, cancellationToken);
-                    }
+            break;
+        }
 
-                    int payloadSize;
-                    unsafe
-                    {
-                        ref readonly var msg = ref new ReadOnlySpan<SteamNetworkingMessage_t>((void*)msgPtrs[0], 1)[0];
-                        payloadSize = msg.Size;
-
-                        ReadOnlySpan<byte> payload = new((void*)msg.Data, msg.Size);
-                        payload.CopyTo(buffer.Span);
-
-                        ref var identity = ref address.AsSteamNetworkingIdentity();
-
-                        identity = msg.IdentityPeer;
-                    }
-
-                    return payloadSize;
-                }
-                finally
-                {
-                    if (msgPtrs[0] != IntPtr.Zero)
-                    {
-                        SteamNetworkingMessage_t.Release(msgPtrs[0]);
-                    }
-                }
-            },
-            cancellationToken));
+        return await this.ReceiveMessageOnChannelAsync(buffer, address, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
-    public ValueTask<SocketReceiveFromResult> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken) => throw new NotImplementedException();
+    public ValueTask<SocketReceiveFromResult> ReceiveAsync(Memory<byte> buffer, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
 
     /// <summary>
     /// Sends data to the specified steam networking identity host.
@@ -110,22 +90,29 @@ public sealed class SteamSocket : IPeerSocket
     /// </param>
     /// <param name="cancellationToken">A cancellation token that can be used to cancel the asynchronous operation.</param>
     /// <returns><see cref="ValueTask"/> containing send task.</returns>
-    public ValueTask<int> SendToAsync(ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
+    public ValueTask<int> SendToAsync(
+        ReadOnlyMemory<byte> buffer, SocketAddress socketAddress, CancellationToken cancellationToken)
     {
-        ref SteamNetworkingIdentity identity = ref socketAddress.AsSteamNetworkingIdentity();
+        ref var identity = ref socketAddress.AsSteamNetworkingIdentity();
 
-        EResult result = this.steamNetMsgs.SendMessageToUser(identity, buffer.Span, ESteamNetworkingSendType.UnreliableNoNagle | ESteamNetworkingSendType.AutoRestartBrokenSession, this.Port);
+        var result = this.steamNetMsgs.SendMessageToUser(
+            identity,
+            buffer.Span,
+            ESteamNetworkingSendType.UnreliableNoNagle | ESteamNetworkingSendType.AutoRestartBrokenSession,
+            this.Port);
 
-        if (result != EResult.OK)
+        if (result is not EResult.OK)
         {
             return ValueTask.FromException<int>(new SteamEResultException(result));
         }
 
-        return ValueTask.FromResult<int>(buffer.Length);
+        return ValueTask.FromResult(buffer.Length);
     }
 
     /// <inheritdoc/>
-    public ValueTask<int> SendToAsync(ReadOnlyMemory<byte> buffer, EndPoint remoteEndPoint, CancellationToken cancellationToken) => throw new NotImplementedException();
+    public ValueTask<int> SendToAsync(
+        ReadOnlyMemory<byte> buffer, EndPoint remoteEndPoint, CancellationToken cancellationToken) =>
+        throw new NotImplementedException();
 
     /// <inheritdoc/>
     public void Dispose()
@@ -136,4 +123,58 @@ public sealed class SteamSocket : IPeerSocket
     public void Close()
     {
     }
+
+    private unsafe bool TryReceiveMessageOnChannel(Span<byte> buffer, in SocketAddress address, out int payloadSize)
+    {
+        Span<nint> msgPtrs = stackalloc nint[1];
+
+        try
+        {
+            var msgReceived = this.steamNetMsgs.ReceiveMessagesOnChannel(this.Port, msgPtrs);
+
+            if (msgReceived is 0)
+            {
+                payloadSize = 0;
+                return false;
+            }
+
+            ref readonly var msg = ref Unsafe.AsRef<SteamNetworkingMessage_t>(msgPtrs[0].ToPointer());
+            payloadSize = msg.Size;
+
+            ReadOnlySpan<byte> payload = new(msg.Data.ToPointer(), msg.Size);
+            payload.CopyTo(buffer);
+
+            ref var identity = ref address.AsSteamNetworkingIdentity();
+            identity = msg.IdentityPeer;
+            return true;
+        }
+        finally
+        {
+            if (msgPtrs[0] != nint.Zero)
+            {
+                SteamNetworkingMessage_t.Release(msgPtrs[0]);
+            }
+        }
+    }
+
+    private Task<int> ReceiveMessageOnChannelAsync(
+        Memory<byte> buffer,
+        SocketAddress address,
+        CancellationToken cancellationToken) =>
+        Task.Run(
+            async () =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    if (this.TryReceiveMessageOnChannel(buffer.Span, in address, out var size))
+                    {
+                        return size;
+                    }
+
+                    await Task.Yield();
+                }
+
+                return 0;
+            },
+            cancellationToken);
 }

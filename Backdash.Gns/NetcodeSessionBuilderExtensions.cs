@@ -3,8 +3,8 @@
 
 namespace Backdash.Gns;
 
+using System.Runtime.CompilerServices;
 using Backdash;
-using Backdash.Options;
 using GnsSharp;
 
 /// <summary>
@@ -27,20 +27,12 @@ public static class NetcodeSessionBuilderExtensions
     /// <typeparam name="TInput">Input type.</typeparam>
     /// <param name="builder">Session builder.</param>
     /// <returns>The same session <paramref name="builder"/> passed in the parameter.</returns>
-    public static NetcodeSessionBuilder<TInput> UseGameNetworkingSockets<TInput>(this NetcodeSessionBuilder<TInput> builder)
+    public static NetcodeSessionBuilder<TInput> UseGameNetworkingSockets<TInput>(
+        this NetcodeSessionBuilder<TInput> builder)
         where TInput : unmanaged
     {
-        return builder.ConfigureServices((ServicesConfig<TInput> services) =>
-        {
-            services.PeerSocketFactory = new SteamSocketFactory();
-        })
-        .ConfigureProtocol((ProtocolOptions protocol) =>
-        {
-            unsafe
-            {
-                protocol.ReceiveSocketAddressSize = sizeof(SteamNetworkingIdentity);
-            }
-        })
-        .UsePlugin(new SteamSessionPlugin());
+        return builder.ConfigureServices(services => { services.PeerSocketFactory = new SteamSocketFactory(); })
+            .ConfigureProtocol(protocol => protocol.ReceiveSocketAddressSize = Unsafe.SizeOf<SteamNetworkingIdentity>())
+            .UsePlugin<SteamSessionPlugin>();
     }
 }
